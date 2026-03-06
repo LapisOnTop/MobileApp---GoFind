@@ -1,8 +1,7 @@
 import { useRef, useState, useCallback, useEffect } from "react";
 import { fabric } from "fabric";
 import { AnimatePresence } from "framer-motion";
-import { useNavigate } from "react-router-dom";
-import { LogOut } from "lucide-react";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import PhoneFrame from "@/components/PhoneFrame";
 import HeaderBar from "@/components/HeaderBar";
 import CanvasEditor from "@/components/CanvasEditor";
@@ -12,67 +11,191 @@ import ResultsDrawer, { ProductResult } from "@/components/ResultsDrawer";
 import SubscriptionGate from "@/components/SubscriptionGate";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "sonner";
 
-const MOCK_RESULTS: ProductResult[] = [
-  { title: "Custom Logo Print Cotton T-Shirt", price: "$12.99", source: "Amazon", thumbnail: "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=200&h=200&fit=crop", link: "https://amazon.com" },
-  { title: "Personalized Graphic Tee - Premium", price: "$18.50", source: "Etsy", thumbnail: "https://images.unsplash.com/photo-1503341504253-dff4815485f1?w=200&h=200&fit=crop", link: "https://etsy.com" },
-  { title: "Wholesale Custom Design Shirts Bulk", price: "$6.20", source: "Alibaba", thumbnail: "https://images.unsplash.com/photo-1618354691373-d851c5c3a990?w=200&h=200&fit=crop", link: "https://alibaba.com" },
-  { title: "Streetwear Logo Print Oversized Tee", price: "$24.99", source: "SHEIN", thumbnail: "https://images.unsplash.com/photo-1576566588028-4147f3842f27?w=200&h=200&fit=crop", link: "https://shein.com" },
-  { title: "DTG Printed Brand Tee - Unisex", price: "$15.00", source: "Printful", thumbnail: "https://images.unsplash.com/photo-1583743814966-8936f5b7be1a?w=200&h=200&fit=crop", link: "https://printful.com" },
-  { title: "Custom All-Over Print T-Shirt", price: "$22.99", source: "Redbubble", thumbnail: "https://images.unsplash.com/photo-1562157873-818bc0726f68?w=200&h=200&fit=crop", link: "https://redbubble.com" },
-];
+type CategoryKey = "Visual Matches (Real)" | "Global General Marketplaces" | "Regional Powerhouses" | "Specialized & Niche Stores" | "Social & Local Commerce";
+
+const TEMPLATE_IMAGES: Record<string, string> = {
+  tshirt: "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=400&q=80",
+  longsleeve: "https://images.unsplash.com/photo-1620799140408-edc6dcb6d633?w=400&q=80",
+  poloshirt: "https://images.unsplash.com/photo-1586363104862-3a5e222eca01?w=400&q=80",
+  cup: "https://images.unsplash.com/photo-1514228742587-6b1558fcca3d?w=400&q=80",
+  cap: "https://images.unsplash.com/photo-1588850561407-ed78c282e89b?w=400&q=80",
+  shorts: "https://images.unsplash.com/photo-1591195853828-11db59a44f6b?w=400&q=80",
+  pants: "https://images.unsplash.com/photo-1541099649105-f69ad21f3246?w=400&q=80",
+  jeans: "https://images.unsplash.com/photo-1542272604-787c3835535d?w=400&q=80",
+};
+
+export type CategorizedResults = Record<CategoryKey, ProductResult[]>;
+
+// Helper function to build dynamic search links based on the real product title
+const generateMarketplaceLinks = (query: string, sourceImg: string): CategorizedResults => {
+  const q = encodeURIComponent(query);
+  const t = sourceImg;
+
+  return {
+    "Visual Matches (Real)": [], // This will be populated with the *actual* edge function results
+    "Global General Marketplaces": [
+      { title: `Search ${query} on Amazon`, price: "Dynamic", source: "Amazon", thumbnail: t, link: `https://www.amazon.com/s?k=${q}` },
+      { title: `Search ${query} on eBay`, price: "Dynamic", source: "eBay", thumbnail: t, link: `https://www.ebay.com/sch/i.html?_nkw=${q}` },
+      { title: `Search ${query} on AliExpress`, price: "Dynamic", source: "AliExpress", thumbnail: t, link: `https://www.aliexpress.com/w/wholesale-${q.replace(/%20/g, '-')}.html` },
+      { title: `Search ${query} on Temu`, price: "Dynamic", source: "Temu", thumbnail: t, link: `https://www.temu.com/search_result.html?search_key=${q}` },
+      { title: `Search ${query} on Walmart`, price: "Dynamic", source: "Walmart", thumbnail: t, link: `https://www.walmart.com/search?q=${q}` },
+    ],
+    "Regional Powerhouses": [
+      { title: `Search ${query} on Shopee (SEA)`, price: "Dynamic", source: "Shopee", thumbnail: t, link: `https://shopee.sg/search?keyword=${q}` },
+      { title: `Search ${query} on Taobao`, price: "Dynamic", source: "Taobao", thumbnail: t, link: `https://s.taobao.com/search?q=${q}` },
+      { title: `Search ${query} on Mercado Libre`, price: "Dynamic", source: "Mercado Libre", thumbnail: t, link: `https://listado.mercadolibre.com.mx/${q.replace(/%20/g, '-')}` },
+      { title: `Search ${query} on Flipkart (India)`, price: "Dynamic", source: "Flipkart", thumbnail: t, link: `https://www.flipkart.com/search?q=${q}` },
+      { title: `Search ${query} on Zalando (EU)`, price: "Dynamic", source: "Zalando", thumbnail: t, link: `https://www.zalando.co.uk/search/?q=${q}` },
+    ],
+    "Specialized & Niche Stores": [
+      { title: `Search ${query} on Etsy (Handmade)`, price: "Dynamic", source: "Etsy", thumbnail: t, link: `https://www.etsy.com/search?q=${q}` },
+      { title: `Search ${query} on Shein (Fashion)`, price: "Dynamic", source: "Shein", thumbnail: t, link: `https://us.shein.com/pdsearch/${q.replace(/%20/g, '%20')}` },
+      { title: `Search ${query} on ASOS (Apparel)`, price: "Dynamic", source: "ASOS", thumbnail: t, link: `https://www.asos.com/search/?q=${q}` },
+    ],
+    "Social & Local Commerce": [
+      { title: `Search ${query} on TikTok Shop`, price: "Dynamic", source: "TikTok Shop", thumbnail: t, link: `https://shop.tiktok.com/` }, // generic since direct query search urls rotate
+      { title: `Search ${query} on Facebook Marketplace`, price: "Dynamic", source: "Facebook Marketplace", thumbnail: t, link: `https://www.facebook.com/marketplace/search/?query=${q}` },
+      { title: `Search ${query} on Depop`, price: "Dynamic", source: "Depop", thumbnail: t, link: `https://www.depop.com/search/?q=${q}` },
+    ],
+  };
+};
 
 const Studio = () => {
   const canvasRef = useRef<fabric.Canvas | null>(null);
   const [isSearching, setIsSearching] = useState(false);
   const [showResults, setShowResults] = useState(false);
-  const [showSubscription, setShowSubscription] = useState(true); // Show on entry
-  const [results, setResults] = useState<ProductResult[]>([]);
-  const { user, signOut } = useAuth();
+  const [showSubscription, setShowSubscription] = useState(false);
+  const [results, setResults] = useState<CategorizedResults | null>(null);
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const { signOut } = useAuth();
 
-  useEffect(() => {
-    if (!user) {
-      navigate("/");
+  const [templateColor, setTemplateColor] = useState<string>("#ffffff");
+  const COLORS = ["#ffffff", "#1e293b", "#ef4444", "#3b82f6", "#22c55e"];
+
+  // New Design Controls
+  const [layoutMode, setLayoutMode] = useState(true);
+  const [showPrintArea, setShowPrintArea] = useState(true);
+  const [showGrid, setShowGrid] = useState(false);
+  const [snapToGrid, setSnapToGrid] = useState(false);
+  const [activeView, setActiveView] = useState<"front" | "back">("front");
+
+  const autoLookup = searchParams.get("autoLookup") === "true";
+  const templateId = searchParams.get("template");
+
+  // Determine background and logo
+  const uploadDataUrl = localStorage.getItem("designMatchUpload");
+  const backgroundUrl = (templateId && TEMPLATE_IMAGES[templateId]) || TEMPLATE_IMAGES["tshirt"];
+  const logoUrl = uploadDataUrl || undefined;
+
+  // Load saved state per view
+  const savedState = (!uploadDataUrl && templateId) ? (localStorage.getItem(`designMatch_saved_${templateId}_${activeView}`) || undefined) : undefined;
+
+  const handleSave = useCallback(() => {
+    if (!canvasRef.current || !templateId) {
+      toast.error("Please select a product first");
+      return;
     }
-  }, [user, navigate]);
+    try {
+      const json = canvasRef.current.toJSON(["name", "opacity", "selectable", "evented"]);
+      localStorage.setItem(`designMatch_saved_${templateId}_${activeView}`, JSON.stringify(json));
+      toast.success(`Design (${activeView}) saved successfully!`);
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to save design");
+    }
+  }, [templateId, activeView]);
 
   const handleLookup = useCallback(async () => {
     if (!canvasRef.current || isSearching) return;
     setIsSearching(true);
     setShowResults(false);
 
-    const dataUrl = canvasRef.current.toDataURL({ format: "png", quality: 1 });
-
     try {
+      const dataUrl = canvasRef.current.toDataURL({ format: "png", quality: 1 });
+
       const { data, error } = await supabase.functions.invoke("visual-search", {
         body: { image: dataUrl },
       });
 
-      if (error || !data?.results?.length) {
-        setResults(MOCK_RESULTS);
-      } else {
-        setResults(data.results);
-      }
-    } catch {
-      setResults(MOCK_RESULTS);
-    }
+      if (error) throw new Error(error.message);
 
-    setIsSearching(false);
-    setShowResults(true);
-  }, [isSearching]);
+      if (!data?.results?.length) {
+        toast.info("No exact visual matches found. Try generating dynamic links or a different design.");
+        setIsSearching(false);
+        return;
+      }
+
+      const realMatches: ProductResult[] = data.results;
+      const detectedProductName = realMatches[0]?.title || "Custom Design Product";
+      const detectedThumbnail = realMatches[0]?.thumbnail || backgroundUrl || dataUrl;
+
+      const dynamicCategories = generateMarketplaceLinks(detectedProductName, detectedThumbnail);
+      dynamicCategories["Visual Matches (Real)"] = realMatches;
+
+      setResults(dynamicCategories);
+      setShowResults(true);
+
+    } catch (err) {
+      console.error("Lookup Failed:", err);
+      toast.error("Visual search failed. Please try again.");
+    } finally {
+      setIsSearching(false);
+    }
+  }, [isSearching, backgroundUrl]);
+
+  const handleCanvasReady = useCallback(() => {
+    if (autoLookup && uploadDataUrl && !isSearching) {
+      handleLookup();
+      localStorage.removeItem("designMatchUpload");
+    }
+  }, [autoLookup, uploadDataUrl, isSearching, handleLookup]);
 
   const handleSignOut = async () => {
     await signOut();
     navigate("/");
   };
 
+  const toolbarControls = {
+    layoutMode, setLayoutMode,
+    showPrintArea, setShowPrintArea,
+    showGrid, setShowGrid,
+    snapToGrid, setSnapToGrid,
+    activeView, setActiveView
+  };
+
   return (
     <PhoneFrame>
-      <HeaderBar onLookup={handleLookup} isSearching={isSearching} onSignOut={handleSignOut} />
+      <HeaderBar onLookup={handleLookup} isSearching={isSearching} onSignOut={handleSignOut} onSave={handleSave} />
 
       <div className="relative flex-1 flex flex-col overflow-hidden">
-        <CanvasEditor canvasRef={canvasRef} />
+        <CanvasEditor
+          canvasRef={canvasRef}
+          backgroundUrl={backgroundUrl}
+          logoUrl={activeView === "front" ? logoUrl : undefined}
+          templateColor={templateColor}
+          savedState={savedState}
+          layoutMode={layoutMode}
+          showPrintArea={showPrintArea}
+          showGrid={showGrid}
+          snapToGrid={snapToGrid}
+          activeView={activeView}
+          onReady={handleCanvasReady}
+        />
+
+        <div className="absolute bottom-6 left-0 right-0 z-10 flex justify-center gap-4">
+          {COLORS.map((color) => (
+            <button
+              key={color}
+              onClick={() => setTemplateColor(color)}
+              className={`w-8 h-8 rounded-full border border-border shadow-md transition-all ${templateColor === color ? "ring-2 ring-primary ring-offset-2 scale-110" : "hover:scale-105"
+                }`}
+              style={{ backgroundColor: color }}
+            />
+          ))}
+        </div>
 
         <AnimatePresence>
           {isSearching && <ScanOverlay />}
@@ -92,6 +215,7 @@ const Studio = () => {
 
       <BottomToolbar
         canvasRef={canvasRef}
+        controls={toolbarControls}
         onSubscribe={() => setShowSubscription(true)}
       />
     </PhoneFrame>
