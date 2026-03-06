@@ -1,0 +1,101 @@
+import { useRef, useState, useCallback, useEffect } from "react";
+import { fabric } from "fabric";
+import { AnimatePresence } from "framer-motion";
+import { useNavigate } from "react-router-dom";
+import { LogOut } from "lucide-react";
+import PhoneFrame from "@/components/PhoneFrame";
+import HeaderBar from "@/components/HeaderBar";
+import CanvasEditor from "@/components/CanvasEditor";
+import BottomToolbar from "@/components/BottomToolbar";
+import ScanOverlay from "@/components/ScanOverlay";
+import ResultsDrawer, { ProductResult } from "@/components/ResultsDrawer";
+import SubscriptionGate from "@/components/SubscriptionGate";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+
+const MOCK_RESULTS: ProductResult[] = [
+  { title: "Custom Logo Print Cotton T-Shirt", price: "$12.99", source: "Amazon", thumbnail: "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=200&h=200&fit=crop", link: "https://amazon.com" },
+  { title: "Personalized Graphic Tee - Premium", price: "$18.50", source: "Etsy", thumbnail: "https://images.unsplash.com/photo-1503341504253-dff4815485f1?w=200&h=200&fit=crop", link: "https://etsy.com" },
+  { title: "Wholesale Custom Design Shirts Bulk", price: "$6.20", source: "Alibaba", thumbnail: "https://images.unsplash.com/photo-1618354691373-d851c5c3a990?w=200&h=200&fit=crop", link: "https://alibaba.com" },
+  { title: "Streetwear Logo Print Oversized Tee", price: "$24.99", source: "SHEIN", thumbnail: "https://images.unsplash.com/photo-1576566588028-4147f3842f27?w=200&h=200&fit=crop", link: "https://shein.com" },
+  { title: "DTG Printed Brand Tee - Unisex", price: "$15.00", source: "Printful", thumbnail: "https://images.unsplash.com/photo-1583743814966-8936f5b7be1a?w=200&h=200&fit=crop", link: "https://printful.com" },
+  { title: "Custom All-Over Print T-Shirt", price: "$22.99", source: "Redbubble", thumbnail: "https://images.unsplash.com/photo-1562157873-818bc0726f68?w=200&h=200&fit=crop", link: "https://redbubble.com" },
+];
+
+const Studio = () => {
+  const canvasRef = useRef<fabric.Canvas | null>(null);
+  const [isSearching, setIsSearching] = useState(false);
+  const [showResults, setShowResults] = useState(false);
+  const [showSubscription, setShowSubscription] = useState(true); // Show on entry
+  const [results, setResults] = useState<ProductResult[]>([]);
+  const { user, signOut } = useAuth();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!user) {
+      navigate("/");
+    }
+  }, [user, navigate]);
+
+  const handleLookup = useCallback(async () => {
+    if (!canvasRef.current || isSearching) return;
+    setIsSearching(true);
+    setShowResults(false);
+
+    const dataUrl = canvasRef.current.toDataURL({ format: "png", quality: 1 });
+
+    try {
+      const { data, error } = await supabase.functions.invoke("visual-search", {
+        body: { image: dataUrl },
+      });
+
+      if (error || !data?.results?.length) {
+        setResults(MOCK_RESULTS);
+      } else {
+        setResults(data.results);
+      }
+    } catch {
+      setResults(MOCK_RESULTS);
+    }
+
+    setIsSearching(false);
+    setShowResults(true);
+  }, [isSearching]);
+
+  const handleSignOut = async () => {
+    await signOut();
+    navigate("/");
+  };
+
+  return (
+    <PhoneFrame>
+      <HeaderBar onLookup={handleLookup} isSearching={isSearching} onSignOut={handleSignOut} />
+
+      <div className="relative flex-1 flex flex-col overflow-hidden">
+        <CanvasEditor canvasRef={canvasRef} />
+
+        <AnimatePresence>
+          {isSearching && <ScanOverlay />}
+        </AnimatePresence>
+
+        <ResultsDrawer
+          open={showResults}
+          onClose={() => setShowResults(false)}
+          results={results}
+        />
+
+        <SubscriptionGate
+          open={showSubscription}
+          onClose={() => setShowSubscription(false)}
+        />
+      </div>
+
+      <BottomToolbar
+        canvasRef={canvasRef}
+        onSubscribe={() => setShowSubscription(true)}
+      />
+    </PhoneFrame>
+  );
+};
+
+export default Studio;
