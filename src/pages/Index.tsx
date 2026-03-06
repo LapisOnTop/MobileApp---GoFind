@@ -8,51 +8,16 @@ import BottomToolbar from "@/components/BottomToolbar";
 import ScanOverlay from "@/components/ScanOverlay";
 import ResultsDrawer, { ProductResult } from "@/components/ResultsDrawer";
 import SubscriptionPage from "@/components/SubscriptionPage";
+import { supabase } from "@/integrations/supabase/client";
 
-// Mock product data for demo (fallback when no API)
+// Fallback mock data
 const MOCK_RESULTS: ProductResult[] = [
-  {
-    title: "Custom Logo Print Cotton T-Shirt",
-    price: "$12.99",
-    source: "Amazon",
-    thumbnail: "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=200&h=200&fit=crop",
-    link: "https://amazon.com",
-  },
-  {
-    title: "Personalized Graphic Tee - Premium",
-    price: "$18.50",
-    source: "Etsy",
-    thumbnail: "https://images.unsplash.com/photo-1503341504253-dff4815485f1?w=200&h=200&fit=crop",
-    link: "https://etsy.com",
-  },
-  {
-    title: "Wholesale Custom Design Shirts Bulk",
-    price: "$6.20",
-    source: "Alibaba",
-    thumbnail: "https://images.unsplash.com/photo-1618354691373-d851c5c3a990?w=200&h=200&fit=crop",
-    link: "https://alibaba.com",
-  },
-  {
-    title: "Streetwear Logo Print Oversized Tee",
-    price: "$24.99",
-    source: "SHEIN",
-    thumbnail: "https://images.unsplash.com/photo-1576566588028-4147f3842f27?w=200&h=200&fit=crop",
-    link: "https://shein.com",
-  },
-  {
-    title: "DTG Printed Brand Tee - Unisex",
-    price: "$15.00",
-    source: "Printful",
-    thumbnail: "https://images.unsplash.com/photo-1583743814966-8936f5b7be1a?w=200&h=200&fit=crop",
-    link: "https://printful.com",
-  },
-  {
-    title: "Custom All-Over Print T-Shirt",
-    price: "$22.99",
-    source: "Redbubble",
-    thumbnail: "https://images.unsplash.com/photo-1562157873-818bc0726f68?w=200&h=200&fit=crop",
-    link: "https://redbubble.com",
-  },
+  { title: "Custom Logo Print Cotton T-Shirt", price: "$12.99", source: "Amazon", thumbnail: "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=200&h=200&fit=crop", link: "https://amazon.com" },
+  { title: "Personalized Graphic Tee - Premium", price: "$18.50", source: "Etsy", thumbnail: "https://images.unsplash.com/photo-1503341504253-dff4815485f1?w=200&h=200&fit=crop", link: "https://etsy.com" },
+  { title: "Wholesale Custom Design Shirts Bulk", price: "$6.20", source: "Alibaba", thumbnail: "https://images.unsplash.com/photo-1618354691373-d851c5c3a990?w=200&h=200&fit=crop", link: "https://alibaba.com" },
+  { title: "Streetwear Logo Print Oversized Tee", price: "$24.99", source: "SHEIN", thumbnail: "https://images.unsplash.com/photo-1576566588028-4147f3842f27?w=200&h=200&fit=crop", link: "https://shein.com" },
+  { title: "DTG Printed Brand Tee - Unisex", price: "$15.00", source: "Printful", thumbnail: "https://images.unsplash.com/photo-1583743814966-8936f5b7be1a?w=200&h=200&fit=crop", link: "https://printful.com" },
+  { title: "Custom All-Over Print T-Shirt", price: "$22.99", source: "Redbubble", thumbnail: "https://images.unsplash.com/photo-1562157873-818bc0726f68?w=200&h=200&fit=crop", link: "https://redbubble.com" },
 ];
 
 const Index = () => {
@@ -68,14 +33,24 @@ const Index = () => {
     setIsSearching(true);
     setShowResults(false);
 
-    // Export canvas
-    const _dataUrl = canvasRef.current.toDataURL({ format: "png", quality: 1 });
+    const dataUrl = canvasRef.current.toDataURL({ format: "png", quality: 1 });
 
-    // Simulate search delay (replace with real API call)
-    await new Promise((resolve) => setTimeout(resolve, 2200));
+    try {
+      const { data, error } = await supabase.functions.invoke("visual-search", {
+        body: { image: dataUrl },
+      });
 
-    // Use mock results for demo
-    setResults(MOCK_RESULTS);
+      if (error || !data?.results?.length) {
+        console.warn("API error or no results, using mock data:", error);
+        setResults(MOCK_RESULTS);
+      } else {
+        setResults(data.results);
+      }
+    } catch (err) {
+      console.warn("Search failed, using mock data:", err);
+      setResults(MOCK_RESULTS);
+    }
+
     setIsSearching(false);
     setShowResults(true);
   }, [isSearching]);
