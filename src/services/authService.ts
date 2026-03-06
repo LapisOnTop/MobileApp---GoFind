@@ -52,12 +52,12 @@ export const signUpWithEmail = async (params: {
 
   if (error) throw error;
 
-  if (data.user) {
+  // When email confirmation is enabled, Supabase returns no session here.
+  // Only treat this as an authenticated session when we actually have one.
+  if (data.session && data.user) {
     await ensureProfile(data.user, displayName);
+    localStorage.setItem("designMatch_showProAfterLogin", "true");
   }
-
-  // Flag to show subscription modal after first successful authentication
-  localStorage.setItem("designMatch_showProAfterLogin", "true");
 
   return data;
 };

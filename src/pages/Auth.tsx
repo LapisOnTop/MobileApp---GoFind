@@ -23,9 +23,16 @@ const Auth = () => {
 
     try {
       if (mode === "signup") {
-        await signUpWithEmail({ email, password, displayName });
-        toast.success("Account created!");
-        navigate(decodeURIComponent(returnTo));
+        const result = await signUpWithEmail({ email, password, displayName });
+
+        if (result.session && result.user) {
+          toast.success("Account created!");
+          navigate(decodeURIComponent(returnTo));
+        } else {
+          // Email confirmation flow: keep them on auth, prompt to verify then log in.
+          toast.success("Account created. Please confirm your email, then sign in.");
+          setMode("login");
+        }
       } else {
         await signInWithPassword({ email, password });
         toast.success("Welcome back!");
