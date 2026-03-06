@@ -153,6 +153,13 @@ const Studio = () => {
     }
   }, [autoLookup, uploadDataUrl, isSearching, handleLookup]);
 
+  useEffect(() => {
+    if (localStorage.getItem("designMatch_showProAfterLogin") === "true") {
+      setShowSubscription(true);
+      localStorage.removeItem("designMatch_showProAfterLogin");
+    }
+  }, []);
+
   const handleSignOut = async () => {
     await signOut();
     navigate("/");

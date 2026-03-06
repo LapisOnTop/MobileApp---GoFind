@@ -72,6 +72,25 @@ const CanvasEditor = ({
       });
       canvas.add(printArea);
       canvas.sendToBack(printArea);
+
+      // Product color layer behind the design but inside the mockup frame
+      const existingColor = canvas.getObjects().find(o => o.name === "productColor");
+      if (existingColor) canvas.remove(existingColor);
+
+      const productColorRect = new fabric.Rect({
+        width: printAreaRect.w + 40,
+        height: printAreaRect.h + 80,
+        fill: templateColor,
+        selectable: false,
+        evented: false,
+        originX: "center",
+        originY: "center",
+        left: printAreaRect.x,
+        top: printAreaRect.y,
+        name: "productColor",
+      });
+      canvas.add(productColorRect);
+      canvas.sendToBack(productColorRect);
     };
 
     const setupGrid = () => {
@@ -103,13 +122,14 @@ const CanvasEditor = ({
         img.scale(scale);
         img.set({ originX: "center", originY: "center", left: 358 / 2, top: 440 / 2 });
 
-        if (templateColor && templateColor !== "#ffffff") {
-          img.filters = [new fabric.Image.filters.BlendColor({
-            color: templateColor, mode: 'multiply', alpha: 0.8
-          })];
-          img.applyFilters();
-        }
-        canvas.setBackgroundImage(img, canvas.renderAll.bind(canvas));
+        img.set({
+          selectable: false,
+          evented: false,
+          name: "productMockup",
+        });
+
+        // Use overlayImage so design layers sit between product color and mockup overlay
+        canvas.setOverlayImage(img, canvas.renderAll.bind(canvas));
         callback();
       }, { crossOrigin: "anonymous" });
     };

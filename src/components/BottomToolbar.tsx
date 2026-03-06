@@ -1,11 +1,13 @@
 import {
-  Upload, Trash2, Crown, Copy, SquareArrowUp, SquareArrowDown,
+  Trash2, Crown, Copy, SquareArrowUp, SquareArrowDown,
   AlignCenter, Droplet, Eraser, FlipHorizontal, FlipVertical,
   RotateCw, Maximize, LayoutTemplate, Grid, Grid3X3, Shirt, Frame
 } from "lucide-react";
-import { useRef, useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { fabric } from "fabric";
 import { toast } from "sonner";
+import { StyledSlider } from "@/components/ui/StyledSlider";
+import { isProUser } from "@/services/proService";
 
 interface BottomToolbarProps {
   canvasRef: React.MutableRefObject<fabric.Canvas | null>;
@@ -22,13 +24,12 @@ interface BottomToolbarProps {
     setActiveView: React.Dispatch<React.SetStateAction<"front" | "back">>;
   };
   onSubscribe: () => void;
+  onRequirePro: () => void;
 }
 
-const BottomToolbar = ({ canvasRef, controls, onSubscribe }: BottomToolbarProps) => {
-  const fileInputRef = useRef<HTMLInputElement>(null);
+const BottomToolbar = ({ canvasRef, controls, onSubscribe, onRequirePro }: BottomToolbarProps) => {
   const [hasSelection, setHasSelection] = useState(false);
   const [opacity, setOpacity] = useState<number>(1);
-  const [showAdvanced, setShowAdvanced] = useState(false);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -53,41 +54,6 @@ const BottomToolbar = ({ canvasRef, controls, onSubscribe }: BottomToolbarProps)
       canvas.off("selection:cleared", updateSelection);
     };
   }, [canvasRef.current]);
-
-  const handleUpload = () => fileInputRef.current?.click();
-
-  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !canvasRef.current) return;
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const dataUrl = event.target?.result as string;
-      fabric.Image.fromURL(dataUrl, (img) => {
-        const maxLogoWidth = 100;
-        const maxLogoHeight = 100;
-        const scale = Math.min(maxLogoWidth / (img.width || maxLogoWidth), maxLogoHeight / (img.height || maxLogoHeight));
-        img.scale(scale);
-        img.set({
-          left: 358 / 2,
-          top: 440 / 2 - 20,
-          originX: "center",
-          originY: "center",
-          cornerColor: "#000",
-          cornerStrokeColor: "#fff",
-          borderColor: "#000",
-          cornerSize: 10,
-          transparentCorners: false,
-          name: "designLogo",
-        });
-        canvasRef.current?.add(img);
-        canvasRef.current?.setActiveObject(img);
-        canvasRef.current?.renderAll();
-      });
-    };
-    reader.readAsDataURL(file);
-    e.target.value = "";
-  };
 
   const clearCanvas = () => {
     const canvas = canvasRef.current;
@@ -131,16 +97,25 @@ const BottomToolbar = ({ canvasRef, controls, onSubscribe }: BottomToolbarProps)
 
   const scaleUp = activeOp((obj, canvas) => { obj.scale((obj.scaleX || 1) * 1.1); canvas.renderAll(); });
 
-  const changeOpacity = activeOp((obj, canvas) => {
-    const newOpacity = opacity === 1 ? 0.5 : opacity === 0.5 ? 0.2 : 1;
-    obj.set({ opacity: newOpacity });
-    setOpacity(newOpacity);
+  const handleOpacityChange = (value: number[]) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const obj = canvas.getActiveObject();
+    if (!obj) return;
+    const next = value[0];
+    obj.set({ opacity: next });
+    setOpacity(next);
     canvas.renderAll();
-  });
+  };
 
   const removeBg = activeOp((obj, canvas) => {
-    const isAlreadyMultiply = obj.globalCompositeOperation === 'multiply';
-    obj.set({ globalCompositeOperation: isAlreadyMultiply ? 'source-over' : 'multiply' });
+    if (!isProUser()) {
+      toast.info("Background removal is a Pro feature.");
+      onRequirePro();
+      return;
+    }
+    const isAlreadyMultiply = obj.globalCompositeOperation === "multiply";
+    obj.set({ globalCompositeOperation: isAlreadyMultiply ? "source-over" : "multiply" });
     canvas.renderAll();
     toast.success(isAlreadyMultiply ? "Restored background" : "Magic Background Removed!");
   });
@@ -211,10 +186,19 @@ const BottomToolbar = ({ canvasRef, controls, onSubscribe }: BottomToolbarProps)
             <SquareArrowDown size={16} />
             <span className="text-[10px]">Backward</span>
           </button>
-          <button onClick={changeOpacity} className="flex flex-col items-center gap-1 text-muted-foreground hover:text-foreground shrink-0">
-            <Droplet size={16} className={opacity < 1 ? "fill-current text-primary" : ""} />
-            <span className="text-[10px]">Opacity</span>
-          </button>
+          <div className="flex flex-col items-center gap-1 text-muted-foreground shrink-0 min-w-[90px]">
+            <div className="flex items-center gap-1">
+              <Droplet size={14} className={opacity < 1 ? "text-primary" : ""} />
+              <span className="text-[10px]">Opacity</span>
+            </div>
+            <StyledSlider
+              value={[opacity]}
+              min={0.2}
+              max={1}
+              step={0.05}
+              onValueChange={handleOpacityChange}
+            />
+          </div>
           <button onClick={removeBg} className="flex flex-col items-center gap-1 text-muted-foreground hover:text-foreground shrink-0">
             <Eraser size={16} className="text-primary" />
             <span className="text-[10px] text-primary">Remove BG</span>
@@ -222,34 +206,13 @@ const BottomToolbar = ({ canvasRef, controls, onSubscribe }: BottomToolbarProps)
         </div>
       )}
 
-      <div className="flex items-center justify-around px-4 py-3">
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          className="hidden"
-          onChange={handleFile}
-        />
-        <button
-          onClick={handleUpload}
-          className="flex flex-col items-center gap-1 text-muted-foreground transition-colors active:text-primary"
-        >
-          <Upload size={20} />
-          <span className="text-[10px] font-medium">Add Logo</span>
-        </button>
-        <button
-          onClick={clearCanvas}
-          className="flex flex-col items-center gap-1 text-muted-foreground transition-colors active:text-destructive"
-        >
-          <Trash2 size={20} />
-          <span className="text-[10px] font-medium">Clear {controls.activeView}</span>
-        </button>
+      <div className="flex items-center justify-end px-4 py-2 border-t border-border/50">
         <button
           onClick={onSubscribe}
-          className="flex flex-col items-center gap-1 text-primary transition-colors active:text-primary/80"
+          className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary px-3 py-1.5 rounded-full bg-primary/5 border border-primary/40 active:scale-95 transition-transform"
         >
-          <Crown size={20} />
-          <span className="text-[10px] font-medium">Pro</span>
+          <Crown size={14} />
+          <span>Upgrade to Pro</span>
         </button>
       </div>
     </div>

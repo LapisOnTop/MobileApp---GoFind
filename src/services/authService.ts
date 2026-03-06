@@ -1,0 +1,85 @@
+import { supabase } from "@/integrations/supabase/client";
+import type { Session, User } from "@supabase/supabase-js";
+import type { TablesInsert } from "@/integrations/supabase/types";
+
+export interface AuthSession {
+  session: Session | null;
+  user: User | null;
+}
+
+export const getInitialSession = async (): Promise<AuthSession> => {
+  const { data, error } = await supabase.auth.getSession();
+  if (error) {
+    console.error("Failed to get Supabase session", error);
+    return { session: null, user: null };
+  }
+  return { session: data.session, user: data.session?.user ?? null };
+};
+
+export const signOut = async () => {
+  await supabase.auth.signOut();
+};
+
+const ensureProfile = async (user: User, displayName?: string | null) => {
+  const profile: TablesInsert<"profiles"> = {
+    user_id: user.id,
+    display_name: displayName || user.email || null,
+  };
+
+  const { error } = await supabase
+    .from("profiles")
+    .upsert(profile, { onConflict: "user_id" });
+
+  if (error) {
+    console.error("Failed to upsert profile", error);
+  }
+};
+
+export const signUpWithEmail = async (params: {
+  email: string;
+  password: string;
+  displayName?: string;
+}) => {
+  const { email, password, displayName } = params;
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: {
+      emailRedirectTo: window.location.origin,
+      data: { display_name: displayName || email },
+    },
+  });
+
+  if (error) throw error;
+
+  if (data.user) {
+    await ensureProfile(data.user, displayName);
+  }
+
+  // Flag to show subscription modal after first successful authentication
+  localStorage.setItem("designMatch_showProAfterLogin", "true");
+
+  return data;
+};
+
+export const signInWithPassword = async (params: {
+  email: string;
+  password: string;
+}) => {
+  const { email, password } = params;
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email,
+    password,
+  });
+
+  if (error) throw error;
+
+  if (data.user) {
+    await ensureProfile(data.user, null);
+  }
+
+  localStorage.setItem("designMatch_showProAfterLogin", "true");
+
+  return data;
+};
+

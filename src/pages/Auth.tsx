@@ -2,9 +2,9 @@ import { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import { ArrowLeft, Mail, Lock, User } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import PhoneFrame from "@/components/PhoneFrame";
+import { signInWithPassword, signUpWithEmail } from "@/services/authService";
 
 const Auth = () => {
   const [searchParams] = useSearchParams();
@@ -23,20 +23,11 @@ const Auth = () => {
 
     try {
       if (mode === "signup") {
-        const { error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            emailRedirectTo: window.location.origin,
-            data: { display_name: displayName || email },
-          },
-        });
-        if (error) throw error;
+        await signUpWithEmail({ email, password, displayName });
         toast.success("Account created!");
         navigate(decodeURIComponent(returnTo));
       } else {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) throw error;
+        await signInWithPassword({ email, password });
         toast.success("Welcome back!");
         navigate(decodeURIComponent(returnTo));
       }
@@ -124,10 +115,9 @@ const Auth = () => {
 
           <div className="mt-6 flex flex-col gap-3">
             <button
-              onClick={() => supabase.auth.signInWithOAuth({
-                provider: "google",
-                options: { redirectTo: `${window.location.origin}${decodeURIComponent(returnTo)}` }
-              })}
+              onClick={() =>
+                toast.info("Google sign-in is temporarily routed through the standard email flow. Please use email for now.")
+              }
               className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-border bg-secondary/30 text-foreground text-sm font-semibold active:scale-[0.98] transition-transform"
             >
               <svg viewBox="0 0 24 24" className="w-5 h-5" aria-hidden="true" focusable="false">
@@ -139,10 +129,9 @@ const Auth = () => {
               Google
             </button>
             <button
-              onClick={() => supabase.auth.signInWithOAuth({
-                provider: "facebook",
-                options: { redirectTo: `${window.location.origin}${decodeURIComponent(returnTo)}` }
-              })}
+              onClick={() =>
+                toast.info("Facebook sign-in is temporarily routed through the standard email flow. Please use email for now.")
+              }
               className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-border bg-secondary/30 text-foreground text-sm font-semibold active:scale-[0.98] transition-transform"
             >
               <svg viewBox="0 0 24 24" className="w-5 h-5 text-[#1877F2]" fill="currentColor">
