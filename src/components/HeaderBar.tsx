@@ -1,14 +1,25 @@
-import { Search } from "lucide-react";
+import { Search, LogOut } from "lucide-react";
 
 interface HeaderBarProps {
   onLookup: () => void;
   isSearching: boolean;
+  onSignOut?: () => void;
 }
 
-const HeaderBar = ({ onLookup, isSearching }: HeaderBarProps) => {
+const HeaderBar = ({ onLookup, isSearching, onSignOut }: HeaderBarProps) => {
   return (
     <div className="flex items-center justify-between px-5 pt-10 pb-3 bg-background border-b border-border">
-      <h1 className="text-base font-semibold text-foreground tracking-tight">Design Studio</h1>
+      <div className="flex items-center gap-2">
+        {onSignOut && (
+          <button
+            onClick={onSignOut}
+            className="p-1.5 rounded-lg bg-secondary text-muted-foreground active:bg-border"
+          >
+            <LogOut size={14} />
+          </button>
+        )}
+        <h1 className="text-base font-semibold text-foreground tracking-tight">Design Studio</h1>
+      </div>
       <button
         onClick={onLookup}
         disabled={isSearching}
